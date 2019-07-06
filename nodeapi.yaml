@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node-api
+  labels:
+    app: node-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: node-api
+  template:
+    metadata:
+      labels:
+        app: node-api
+    spec:
+      containers:
+      - name: node-api
+        image: developerrohitkhatri/sample-nodejs-api
+        ports:
+        - containerPort: 80
+        env:
+          - name: DB_HOST
+            value: mongo-0.mongo
+          - name: DB_PORT
+            value: '27017'
+          - name: DB_DATABASE
+            value: local
+          - name: DB_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: mongo-key
+                key: username
+          - name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mongo-key
+                key: password
+---
+#creating service for Node
+kind: Service
+apiVersion: v1
+metadata:
+  name: node-api
+spec:
+  selector:
+    app: node-api
+  ports:
+    - port: 3000
+
+---
+#Creating the ingress resource
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: node-api-ingress
+spec:
+  backend:
+    serviceName: node-api
+    servicePort: 80

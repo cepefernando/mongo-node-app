@@ -1,0 +1,103 @@
+#Creating the PV on k8s
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+ name: mongo-pv
+ namespace: dubai
+ labels:
+  type: local
+spec:
+ storageClassName: manual
+ capacity:
+  storage: 2Gi
+  accessModes:
+    - ReadWriteOnce
+ hostPath:
+  path: '/mnt/mongo_data'
+---
+#Creating the PVC
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+ name: mongo-pv-claim
+ namespace: dubai
+spec:
+ storageClassName: manual
+ accessModes:
+  - ReadWriteOnce
+ resources:
+  requests:
+   storage: 2Gi
+---
+#Creating the service
+apiVersion: v1
+kind: Service
+metadata:
+ name: mongo
+ namespace: dubai
+ labels:
+  name: mongo
+spec:
+ ports:
+  - port: 27017
+    targetPort: 27017
+ clusterIP: None
+ selector:
+  role: mongo
+---
+#Creating the secret for MongoDB
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mongo-key
+  namespace: dubai
+type: Opaque
+data:
+  username: root
+  password: MWYyZDFlMmU2N2Rm
+---
+#Creating the StatefulSet k8s object for MongoDB
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+ name: mongo
+ namespace: dubai
+spec:
+  serviceName: "mongo"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        role: mongo
+        environment: test
+    spec:
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - name: mongo-pv-storage
+        persistentVolumeClaim:
+          claimName: mongo-pv-claim
+        #Mounting the k8s secret as a volume
+      - name: mongo-key
+        secret:
+          defaultMode: 0400
+          secretName: mongo-key
+      containers:
+      - name: mongo
+        image: mongo
+        command:
+        - mongod
+        - "--bind_ip"
+        - 0.0.0.0
+        - "--smallfiles"
+        - "--noprealloc"
+        ports:
+        - containerPort: 27017
+        volumeMounts:
+        - name: mongo-pv-storage
+          mountPath: /data/db
+        env:
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-key
+                  key: password
